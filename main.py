@@ -253,14 +253,14 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
             # SciPy Method, slower but better defined.
             path_skeleton, distance = medial_axis(inverted_thresh, return_distance=True)
             dist_on_skel = path_skeleton * distance
-            for a in dist_on_skel:
-                if a.any():
-                    print(np.min(a[np.nonzero(a)]))
-                else:
-                    print("SAKLFJAELKDRJAWl")
             path_skeleton = img_as_ubyte(path_skeleton)
-            #dist_on_skel = cv2.cvtColor(dist_on_skel, cv2.CV_32FC1)
-            cv2.imshow("Distance", dist_on_skel)
+            critical_points = find_critical_points(dist_on_skel, number_of_points=50)
+            print(critical_points)
+            new_img = frame.copy()
+            for each_point in critical_points:
+                cv2.circle(new_img, each_point, 20, (0,0,255), 2)
+            cv2.imshow("STUFF AND ThINGS", new_img)
+
         else:
             # OPENCV Method, faster, but not as smooth.
             # Erode the image gradually, subtracting away sections until the skeleton is one pixel wide
@@ -308,8 +308,34 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
     cv2.destroyAllWindows()
 
 
-def find_critical_lines(distance_on_skeleton):
-    pass
+def find_critical_points(distance_on_skeleton, number_of_points, edge_width=50):
+    # This assumes this is not a ragged array.
+    top = edge_width
+    bottom = len(distance_on_skeleton) - edge_width
+    left = edge_width
+    # If this needs to work with ragged arrays, move this next line everywhere the length of the row may change.
+    right = len(distance_on_skeleton[0]) - edge_width
+    flattened_distances = [item for sublist in distance_on_skeleton[top:bottom]
+                           for item in sublist[left:right] if item]
+    sorted_distances = sorted(list(set(flattened_distances)))
+    critical_numbers = sorted_distances[:number_of_points]
+    critical_points = []
+    # IT'S THE END TIMES! THE END TIIIIIMES!!!
+    # O(n^3) eat my CPU out... And send pictures plzthxbai
+    for critical_number in critical_numbers:
+        found_num = False
+        #[edge_width:len(distance_on_skeleton) - edge_width]
+        for x, row in enumerate(distance_on_skeleton):
+            for y, value in enumerate(row):
+                #[edge_width:len(row)-edge_width]
+                if value == critical_number and left <= x <= right and top <= y <= bottom:
+                    critical_points.append((x,y))
+                    found_num = True
+                    break
+            if found_num:
+                break
+    # Now that the end times are over, let's continue.
+    return critical_points
 
 if __name__ == "__main__":
     skeleton(use_median_filter=True, scale_up_ratio=2, show_skeleton=True,
