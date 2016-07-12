@@ -252,10 +252,14 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
         if use_median_filter:
             # SciPy Method, slower but better defined.
             path_skeleton, distance = medial_axis(inverted_thresh, return_distance=True)
-            distance = cv2.cvtColor(distance, cv2.COLOR_GRAY2BGR)
-            path_skeleton = img_as_ubyte(path_skeleton)
             dist_on_skel = path_skeleton * distance
-            print(len(dist_on_skel))
+            for a in dist_on_skel:
+                if a.any():
+                    print(np.min(a[np.nonzero(a)]))
+                else:
+                    print("SAKLFJAELKDRJAWl")
+            path_skeleton = img_as_ubyte(path_skeleton)
+            #dist_on_skel = cv2.cvtColor(dist_on_skel, cv2.CV_32FC1)
             cv2.imshow("Distance", dist_on_skel)
         else:
             # OPENCV Method, faster, but not as smooth.
@@ -303,6 +307,9 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
     camera.release()
     cv2.destroyAllWindows()
 
+
+def find_critical_lines(distance_on_skeleton):
+    pass
 
 if __name__ == "__main__":
     skeleton(use_median_filter=True, scale_up_ratio=2, show_skeleton=True,
