@@ -6,8 +6,8 @@ from skimage.morphology import medial_axis
 import matplotlib.pyplot as plt
 import find_robot
 
-# Probablistic Hough Lines on Picture
 """
+# Probablistic Hough Lines on Picture
 img = cv2.imread("img2.jpg")
 small = cv2.resize(img, (0, 0), fx=0.075, fy=0.075)
 hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
@@ -43,24 +43,22 @@ lrg = cv2.resize(redFinder, (0, 0), fx=20, fy = 20)
 cv2.imwrite("Lines.jpg", lrg)
 """
 
-# Alright bear with a brotha for a second. I don't think we need any kind of line detection at all.
-# The thresheld image automatically maps out the free space for us (by what black magic I do not know).
-# All we need to do then is build a list of those points in the occupied (i.e. white) space that lie directly
-# next to a point in the free (i.e. black) space and those are our lines. That list we can then ship off to PAGI
-# world for maze construction. This dramatically cuts down on computational time. As it stands we're able to build
-# voronoi diagrams in real time, which is pretty great!
-
-# Declare the interface through which the camera will be accessed
-camera_index = 0
-camera = cv2.VideoCapture(camera_index)
+"""
+Alright bear with a brotha for a second. I don't think we need any kind of line detection at all.
+The thresheld image automatically maps out the free space for us (by what black magic I do not know).
+All we need to do then is build a list of those points in the occupied (i.e. white) space that lie directly
+next to a point in the free (i.e. black) space and those are our lines. That list we can then ship off to PAGI
+world for maze construction. This dramatically cuts down on computational time. As it stands we're able to build
+voronoi diagrams in real time, which is pretty great!
+"""
 
 
-# Placeholder function so the trackbar has an empty callback function
 def nothing(x):
+    '''Placeholder function so the trackbar has an empty callback function'''
     pass
 
 
-def voronoi(storage_length=10, delete_length=1,
+def voronoi(storage_length=10, delete_length=1, save_images=False,
             use_rolling_average=True, use_line_buffer=True, draw_voronoi=True, find_keypoints=True,
             scale_down_ratio=0.75, scale_up_ratio=None):
     assert storage_length >= delete_length
@@ -71,7 +69,6 @@ def voronoi(storage_length=10, delete_length=1,
     # A BGR color value used to denote the color thresholded for the occupancy grid
     # This is also the color used to draw lines, thus how we get the ^^^^^^^^^^^^^^
     track_color = (0, 0, 255)
-
     if find_keypoints:
         # ORB keypoint detection
         orb = cv2.ORB()
@@ -85,6 +82,9 @@ def voronoi(storage_length=10, delete_length=1,
         cv2.createTrackbar("Detection Strength", "Rolling Average", 40, 100, nothing)
     cv2.namedWindow("Occupancy")
     cv2.createTrackbar("Line Thickness", "Occupancy", 0, 25, nothing)
+    # Declare the interface through which the camera will be accessed
+    camera_index = 0
+    camera = cv2.VideoCapture(camera_index)
 
     while True:
         # Get a boolean value determining whether a frame was successfuly grabbed
@@ -94,7 +94,7 @@ def voronoi(storage_length=10, delete_length=1,
             print("Camera is not accessible. Is another application using it?")
             print("Check to make sure other versions of this program aren't running.")
             break
-        resized = cv2.resize(img, (0, 0), fx=scale_down_ratio, fy=scale_down_ratio)  # fx=2  , fy=2
+        resized = cv2.resize(img, (0, 0), fx=scale_down_ratio, fy=scale_down_ratio)
         gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (21, 21), 0)
         ret, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -107,7 +107,7 @@ def voronoi(storage_length=10, delete_length=1,
         min_line_length = 100  # 85
         max_line_gap = 85  # 100
         # Try to find points which look like lines according to our settings.
-        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, None, min_line_length, max_line_gap)
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 100, None, min_line_length, max_line_gap)
 
         # If we find some lines to draw, draw them and display them.
         if lines is not None:
@@ -134,9 +134,8 @@ def voronoi(storage_length=10, delete_length=1,
 
             if use_rolling_average:
                 if not first_run:
-                    alpha = cv2.getTrackbarPos("Frame Fade", "Rolling Average")/100.0  # 0.5
-                    beta = cv2.getTrackbarPos("Detection Strength", "Rolling Average")/100.0  # 0.5
-
+                    alpha = cv2.getTrackbarPos("Frame Fade", "Rolling Average")/100.0
+                    beta = cv2.getTrackbarPos("Detection Strength", "Rolling Average")/100.0
                     rolling_average_image = cv2.addWeighted(rolling_average_image, alpha, occupancy_map, beta, 0)
                     occupancy_map = rolling_average_image
                     cv2.imshow("Rolling Average", rolling_average_image)
@@ -165,12 +164,6 @@ def voronoi(storage_length=10, delete_length=1,
                 for each_key_point in key_points:
                     x, y = each_key_point.pt
                     occupied_space.append((x, y))
-                    '''
-                    try:
-                        if value == 255
-                        # and (data[x + 1, y] == 0 or data[x - 1, y] == 0 or data[x, y + 1] == 0 or data[x, y - 1] == 0):
-                            occuspace.append((x, y))
-                    '''
 
             if draw_voronoi:
                 # Compute the Voronoi diagram and draw the relevant sections on the screen.
@@ -198,8 +191,9 @@ def voronoi(storage_length=10, delete_length=1,
         # Get the value for the key we entered with '& 0xFF' for 64-bit systems
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q") or key == ord("Q"):
-            #cv2.imwrite("occupancy.png", occupancy_map)
-            #cv2.imwrite("Threshold.png", thresh)
+            if save_images:
+                cv2.imwrite("occupancy.png", occupancy_map)
+                cv2.imwrite("Threshold.png", thresh)
             break
 
     # Clean up, go home
@@ -208,7 +202,7 @@ def voronoi(storage_length=10, delete_length=1,
 
 
 def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=False, show_skeleton=False,
-             show_skeleton_threshold=True, find_keypoints=True,
+             show_skeleton_threshold=True, show_occupancy=False, find_keypoints=True,
              scale_down_ratio=0.75, scale_up_ratio=None):
     # Initialize windows to display frames and controls
     if show_threshold:
@@ -219,12 +213,16 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
         cv2.namedWindow("Skeleton with Threshold")
     if scale_up_ratio is None:
         scale_up_ratio = 1 / scale_down_ratio
-    # Define constant here.
-    # Precompute a kernel. For information
+    # Define constants here.
     orb = cv2.ORB()
+    # Precompute a kernel. For information
     kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
-    cv2.namedWindow("Occupancy")
-    cv2.createTrackbar("Line Thickness", "Occupancy", 0, 25, nothing)
+    if show_occupancy:
+        cv2.namedWindow("Occupancy")
+        cv2.createTrackbar("Line Thickness", "Occupancy", 0, 25, nothing)
+    # Declare the interface through which the camera will be accessed
+    camera_index = 0
+    camera = cv2.VideoCapture(camera_index)
 
     while True:
         # Get a boolean value determining whether a frame was successfuly grabbed
@@ -254,13 +252,14 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
             path_skeleton, distance = medial_axis(inverted_thresh, return_distance=True)
             dist_on_skel = path_skeleton * distance
             path_skeleton = img_as_ubyte(path_skeleton)
-            critical_points = find_critical_points(dist_on_skel, number_of_points=50)
+            critical_points = find_critical_points(dist_on_skel, number_of_points=10, edge_width=10)
             print(critical_points)
-            new_img = frame.copy()
+            critical_point_overlay = cv2.cvtColor(path_skeleton.copy(), cv2.COLOR_GRAY2BGR)
+            #critical_point_overlay_temp = cv2.resize(critical_point_overlay, (0, 0),
+            #                                         fx=scale_up_ratio, fy=scale_up_ratio)
             for each_point in critical_points:
-                cv2.circle(new_img, each_point, 20, (0,0,255), 2)
-            cv2.imshow("STUFF AND ThINGS", new_img)
-
+                cv2.circle(critical_point_overlay, each_point, 5, (0, 0, 255), 2)
+            cv2.imshow("Critical Points", critical_point_overlay)
         else:
             # OPENCV Method, faster, but not as smooth.
             # Erode the image gradually, subtracting away sections until the skeleton is one pixel wide
@@ -324,12 +323,10 @@ def find_critical_points(distance_on_skeleton, number_of_points, edge_width=50):
     # O(n^3) eat my CPU out... And send pictures plzthxbai
     for critical_number in critical_numbers:
         found_num = False
-        #[edge_width:len(distance_on_skeleton) - edge_width]
         for x, row in enumerate(distance_on_skeleton):
             for y, value in enumerate(row):
-                #[edge_width:len(row)-edge_width]
                 if value == critical_number and left <= x <= right and top <= y <= bottom:
-                    critical_points.append((x,y))
+                    critical_points.append((x, y))
                     found_num = True
                     break
             if found_num:
@@ -338,8 +335,8 @@ def find_critical_points(distance_on_skeleton, number_of_points, edge_width=50):
     return critical_points
 
 if __name__ == "__main__":
-    skeleton(use_median_filter=True, scale_up_ratio=2, show_skeleton=True,
+    skeleton(use_median_filter=False, scale_down_ratio=0.5, scale_up_ratio=None, show_skeleton=True,
              show_skeleton_threshold=True, show_threshold=True, find_keypoints=False)
-    #voronoi(storage_length=20, delete_length=5, use_rolling_average=True,
-     #       use_line_buffer=False, draw_voronoi=False, find_keypoints=False)
-    #find_robot()
+    voronoi(storage_length=20, delete_length=5, use_rolling_average=True,
+            use_line_buffer=False, draw_voronoi=False, find_keypoints=False)
+    find_robot.main(show_left=True, show_right=True, show_both=True)

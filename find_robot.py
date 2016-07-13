@@ -20,7 +20,6 @@ class HSVTrackbarWindow:
         cv2.createTrackbar(HSVTrackbarWindow.switch, self.window_name, 0, 1, self.nothing)
 
     def nothing(self, x):
-        print(x)
         pass
 
     def get_range(self):
@@ -51,19 +50,6 @@ class HSVTrackbarWindow:
         return lower, upper
 
 
-"""
-
-I'm still working on the math and everything, but when done, this will be able to be customized
-to track any colored object we want and can then be used to track the angle of the robot using
-two colored blobs on a sheet of paper placed on top of the bot.
-
-"""
-
-#rightLower = (50, 250, 60)
-#rightUpper = (90, 255, 255)
-
-
-
 def angle_of_normal_between(a, b, adjustment=90):
     try:
         radians = np.arctan2(a[1]-b[1], b[0]-a[0])
@@ -71,6 +57,7 @@ def angle_of_normal_between(a, b, adjustment=90):
         return degrees
     except ZeroDivisionError:
         return None
+
 
 def get_largest_contour(image, hsv_trackbar_window):
 
@@ -113,56 +100,68 @@ def draw_largest_contour(image, center, radius, min_radius=10, color=(0, 0, 0)):
         cv2.circle(image, center, radius, color, 2)
     return image
 
+
 def draw_robot_graphics(image, text, pt1, pt2):
-    cv2.putText(image, text, (20, 30), cv2.FONT_HERSHEY_PLAIN,
-                2.3, (0, 0, 255))
-    cv2.line(image, pt1, pt2, color=(0,255,0))
+    pt1_arr = np.array(pt1)
+    pt2_arr = np.array(pt2)
+    middle = pt1_arr+(pt2_arr-pt1_arr)/2
+    middle = tuple(map(int, middle))
+    cv2.putText(image, text, middle, cv2.FONT_HERSHEY_SIMPLEX, 1.3, (128, 255, 200))
+    cv2.line(image, pt1, pt2, color=(0, 255, 0))
     return image
 
 
-def main():
-    camera = cv2.VideoCapture(0)
-    leftDrawColor = (255, 0, 255)
-    rightDrawColor = (0, 255, 0)
-
+def main(show_left=False, show_right=False, show_both=True):
+    left_draw_color = (255, 0, 255)
+    right_draw_color = (0, 255, 0)
     left_hsv_window = HSVTrackbarWindow("Left Mask", *HSVTrackbarWindow.default_hsv_range)
     right_hsv_window = HSVTrackbarWindow("Right Mask", *HSVTrackbarWindow.default_hsv_range)
-
-
+    # Declare the interface through which the camera will be accessed
+    camera_index = 0
+    camera = cv2.VideoCapture(camera_index)
 
     while True:
         # grab the current frame
-        grabbed, frame = camera.read()
+        able_to_retrieve_frame, frame = camera.read()
+        # Get a boolean value determining whether a frame was successfuly grabbed
+        # from the camera and then the actual frame itself.
+        if not able_to_retrieve_frame:
+            print("Camera is not accessible. Is another application using it?")
+            print("Check to make sure other versions of this program aren't running.")
+            break
+
         # Resize the frame, blur it, and convert it to the HSV color space.
         frame = imutils.resize(frame, width=600)
-        # blurred = cv2.GaussianBlur(frame, (11, 11), 0)
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        blurred = cv2.GaussianBlur(frame, (11, 11), 0)
+        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
         cv2.imshow("HSV", hsv)
         left_center, left_radius = get_largest_contour(hsv, left_hsv_window)
-
         right_center, right_radius = get_largest_contour(hsv, right_hsv_window)
 
         if left_center is not None:
-            left_frame = draw_largest_contour(frame, left_center, 20, color=leftDrawColor)
-#            cv2.imshow("Left Tracker", left_frame)
+            left_frame = draw_largest_contour(frame.copy(), left_center, left_radius, color=left_draw_color)
+            if show_left:
+                cv2.imshow("Left Tracker", left_frame)
         if right_center is not None:
-            right_frame = draw_largest_contour(frame, right_center, 30, color=rightDrawColor)
-#            cv2.imshow("Right Tracker", right_frame)
+            right_frame = draw_largest_contour(frame.copy(), right_center, right_radius, color=right_draw_color)
+            if show_right:
+                cv2.imshow("Right Tracker", right_frame)
         if left_center is not None and right_center is not None:
-            both_frames = draw_largest_contour(left_frame, right_center, right_radius, color=rightDrawColor)
-            both_frames = draw_robot_graphics(both_frames, str(angle_of_normal_between(left_center, right_center)),
-                                              left_center, right_center)
-            cv2.imshow("Both Trackers", both_frames)
+            both_frames = draw_largest_contour(left_frame, right_center, right_radius, color=right_draw_color)
+            angle = round(angle_of_normal_between(left_center, right_center), 2)
+            both_frames = draw_robot_graphics(both_frames, str(angle), left_center, right_center)
+            if show_both:
+                cv2.imshow("Both Trackers", both_frames)
 
-        # show the frame to our screen
+        # Get the value for the key we entered with '& 0xFF' for 64-bit systems
         key = cv2.waitKey(1) & 0xFF
-
-        # if the 'q' key is pressed, stop the loop
-        if key == ord("q"):
+        # Stop the program if the key was q/Q
+        if key == ord('q') or key == ord('Q'):
             break
 
     # cleanup the camera and close any open windows
     camera.release()
     cv2.destroyAllWindows()
 
-main()
+if __name__ == "__main__":
+    main()
