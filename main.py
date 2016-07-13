@@ -5,6 +5,7 @@ from skimage import img_as_ubyte
 from skimage.morphology import medial_axis
 import matplotlib.pyplot as plt
 import find_robot
+np.set_printoptions(threshold=np.inf, linewidth=np.inf)
 
 """
 # Probablistic Hough Lines on Picture
@@ -235,7 +236,7 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
         resized = cv2.resize(frame, (0, 0), fx=scale_down_ratio, fy=scale_down_ratio)
         gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
         gray_blur = cv2.GaussianBlur(gray, (21, 21), 0)
-        ret, thresh = cv2.threshold(gray_blur, 127, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        ret, thresh = cv2.threshold(gray_blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
         thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
         if show_threshold:
@@ -246,15 +247,20 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
         if invert_threshold:
             thresh = cv2.bitwise_not(thresh)
         inverted_thresh = cv2.bitwise_not(thresh)
+        '''camera.release()
+        cv2.destroyAllWindows()
+        return inverted_thresh'''
 
         if use_median_filter:
             # SciPy Method, slower but better defined.
             path_skeleton, distance = medial_axis(inverted_thresh, return_distance=True)
             dist_on_skel = path_skeleton * distance
+            #print(dist_on_skel)
             path_skeleton = img_as_ubyte(path_skeleton)
-            critical_points = find_critical_points(dist_on_skel, number_of_points=10, edge_width=10)
-            print(critical_points)
-            critical_point_overlay = cv2.cvtColor(path_skeleton.copy(), cv2.COLOR_GRAY2BGR)
+            critical_points = find_critical_points(dist_on_skel, number_of_points=10,
+                                                   minimum_distance=50, edge_width=20)
+            #print(critical_points)
+            critical_point_overlay = cv2.cvtColor(path_skeleton, cv2.COLOR_GRAY2BGR)
             #critical_point_overlay_temp = cv2.resize(critical_point_overlay, (0, 0),
             #                                         fx=scale_up_ratio, fy=scale_up_ratio)
             for each_point in critical_points:
@@ -305,9 +311,10 @@ def skeleton(use_median_filter=False, invert_threshold=False, show_threshold=Fal
     # Clean up, go home
     camera.release()
     cv2.destroyAllWindows()
+    return inverted_thresh
 
 
-def find_critical_points(distance_on_skeleton, number_of_points, edge_width=50):
+def find_critical_points(distance_on_skeleton, number_of_points, minimum_distance=10, edge_width=20):
     # This assumes this is not a ragged array.
     top = edge_width
     bottom = len(distance_on_skeleton) - edge_width
@@ -316,12 +323,17 @@ def find_critical_points(distance_on_skeleton, number_of_points, edge_width=50):
     right = len(distance_on_skeleton[0]) - edge_width
     flattened_distances = [item for sublist in distance_on_skeleton[top:bottom]
                            for item in sublist[left:right] if item]
-    sorted_distances = sorted(list(set(flattened_distances)))
+    filtered_distances = filter(lambda x: not x % 2 and x > minimum_distance, flattened_distances)
+    sorted_distances = sorted(list(set(filtered_distances)))
     critical_numbers = sorted_distances[:number_of_points]
+    critical_points_array = []
     critical_points = []
     # IT'S THE END TIMES! THE END TIIIIIMES!!!
     # O(n^3) eat my CPU out... And send pictures plzthxbai
+    matrix = np.array(distance_on_skeleton)
     for critical_number in critical_numbers:
+        critical_points_array.append(np.where(matrix == critical_number))
+        '''
         found_num = False
         for x, row in enumerate(distance_on_skeleton):
             for y, value in enumerate(row):
@@ -331,12 +343,53 @@ def find_critical_points(distance_on_skeleton, number_of_points, edge_width=50):
                     break
             if found_num:
                 break
+        '''
     # Now that the end times are over, let's continue.
+    for detection in critical_points_array:
+        x = detection[0]
+        y = detection[1]
+        for a,b in zip(x,y):
+            if (a,b) is not None:
+                critical_points.append((b, a))
+
+    print(critical_points)
     return critical_points
 
 if __name__ == "__main__":
-    skeleton(use_median_filter=False, scale_down_ratio=0.5, scale_up_ratio=None, show_skeleton=True,
-             show_skeleton_threshold=True, show_threshold=True, find_keypoints=False)
+    '''
+    import numpy as np
+    from scipy import ndimage as ndi
+    from skimage.morphology import medial_axis
+    import matplotlib.pyplot as plt
+
+    #data = microstructure(l=64)
+    data = skeleton(use_median_filter=False, scale_down_ratio=0.4, scale_up_ratio=None, show_skeleton=True,
+             show_skeleton_threshold=True, show_threshold=True, find_keypoints=False, invert_threshold=False)
+
+
+    # Compute the medial axis (skeleton) and the distance transform
+    skel, distance = medial_axis(data, return_distance=True)
+
+    # Distance to the background for pixels of the skeleton
+    dist_on_skel = distance * skel
+    print(dist_on_skel)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), sharex=True, sharey=True,
+                                   subplot_kw={'adjustable': 'box-forced'})
+    ax1.imshow(data, cmap=plt.cm.gray, interpolation='nearest')
+    ax1.axis('off')
+    ax2.imshow(dist_on_skel, cmap=plt.cm.spectral, interpolation='nearest')
+    ax2.contour(data, [0.5], colors='w')
+    ax2.axis('off')
+
+    fig.subplots_adjust(hspace=0.01, wspace=0.01, top=1, bottom=0, left=0, right=1)
+    plt.show()
+    '''
+    skeleton(use_median_filter=True, scale_down_ratio=0.6, scale_up_ratio=None, show_skeleton=True,
+             show_skeleton_threshold=True, show_threshold=True, find_keypoints=False, invert_threshold=False)
+    find_robot.main(show_left=True, show_right=True, show_both=True)
+
+    '''
     voronoi(storage_length=20, delete_length=5, use_rolling_average=True,
             use_line_buffer=False, draw_voronoi=False, find_keypoints=False)
-    find_robot.main(show_left=True, show_right=True, show_both=True)
+    '''

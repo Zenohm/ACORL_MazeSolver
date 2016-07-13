@@ -50,7 +50,7 @@ class HSVTrackbarWindow:
         return lower, upper
 
 
-def angle_of_normal_between(a, b, adjustment=90):
+def angle_of_normal_between(a, b, adjustment=0):
     try:
         radians = np.arctan2(a[1]-b[1], b[0]-a[0])
         degrees = (adjustment + np.rad2deg(radians)) % 360
@@ -69,8 +69,7 @@ def get_largest_contour(image, hsv_trackbar_window):
 
     hsv_median = cv2.medianBlur(image, 15)
     mask = cv2.inRange(hsv_median, hsv_lower, hsv_upper)
-    mask = cv2.erode(mask, None, iterations=2)
-    mask = cv2.dilate(mask, None, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, None, iterations=2)
     cv2.imshow(hsv_trackbar_window.window_name, mask)
 
     # find contours in the mask and initialize the current
@@ -86,7 +85,7 @@ def get_largest_contour(image, hsv_trackbar_window):
         # it to compute the minimum enclosing circle and
         # centroid
         c = max(cnts, key=cv2.contourArea)
-        ((x,y), radius) = cv2.minEnclosingCircle(c)
+        ((x, y), radius) = cv2.minEnclosingCircle(c)
         center = (int(x), int(y))
         radius = int(radius)
     return center, radius
